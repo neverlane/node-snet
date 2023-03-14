@@ -1,7 +1,5 @@
-## node-snet
+# Node Simple Network
 
-[SNet](https://github.com/SLMP-Team/SNET/) port for NodeJS
+NodeJS port of [LuaJIT SNet](https://github.com/SLMP-Team/SNET/)
 
-### Requirements
-
-tiny-typed-emitter (`npm i tiny-typed-emitter`)
+SNET - cross-platform, open source, network library

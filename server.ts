@@ -1,6 +1,7 @@
 import { createSocket, Socket } from 'dgram';
-import { TypedEmitter } from 'tiny-typed-emitter';
+import { TypedEmitter } from './typed-emitter';
 import { BitStream } from './bitstream';
+import { getPacket, sendPacket } from './net-utils';
 import { SNET_BLOCK_PACKET, SNET_CONFIRM_PRIORITY, SNET_PRIORITES } from './types';
 
 export interface ServerOptions {
@@ -79,23 +80,13 @@ export class SNetServer extends TypedEmitter<SNetServerEvents> {
     return true;
   }
 
-  private sendPacket(uniqueId: number, packetId: number, priority: SNET_PRIORITES, bs: BitStream, address: string, port: number) {
-    const data = new BitStream();
-    data.writeUInt32(uniqueId);
-    data.writeUInt32(packetId);
-    data.writeUInt8(priority);
-    const EMPTY = Buffer.from([0x0]);
-    const bytes = Buffer.concat([EMPTY, data.getBuffer(), bs.getBuffer(), EMPTY]);
-    this.socket.send(bytes, port, address);
-  }
-
   public send(packetId: number, bs: BitStream, priority: SNET_PRIORITES, address: string, port: number) {
     const uniqueId = this.uniqueId;
     this.uniqueId++;
     if (this.uniqueId >= 4294967295) {
       this.uniqueId = 0;
     }
-    this.sendPacket(uniqueId, packetId, priority, bs, address, port);
+    sendPacket(this.socket, uniqueId, packetId, priority, bs, address, port);
     if (priority > 0) {
       this.packets.push({
         uniqueId, packetId,
@@ -124,16 +115,9 @@ export class SNetServer extends TypedEmitter<SNetServerEvents> {
       return false;
     }
 
-    if (buffer[0] !== 0x0) return false;
-    const data = <Buffer> Uint8Array.prototype.slice.call(buffer, 1);
-    
-    let offset = 0;
-    const uniqueId = data.readUInt32LE(offset);
-    offset += 4;
-    const packetId = data.readUInt32LE(offset);
-    offset += 4;
-    const priority = data.readUInt8(offset);
-    const cleanData = <Buffer> Uint8Array.prototype.slice.call(data, 9);
+    const packet = getPacket(buffer);
+    if (packet === false) return false;
+    const { uniqueId, packetId, priority, data } = packet;
     
     if (priority > 0) {
       const newBs = new BitStream();
@@ -156,10 +140,10 @@ export class SNetServer extends TypedEmitter<SNetServerEvents> {
     }
     this.clients[addressAndPort] = Date.now();
 
-    this.emit('onReceivePacket', packetId, BitStream.from(cleanData), address, port);
+    this.emit('onReceivePacket', packetId, BitStream.from(data), address, port);
 
     if (packetId === SNET_CONFIRM_PRIORITY) {
-      const confBs = BitStream.from(cleanData);
+      const confBs = BitStream.from(data);
       const confId = confBs.readUInt32();
       const idx = this.packets.findIndex((v) => v.uniqueId === confId);
       if (idx > -1) {
@@ -179,7 +163,7 @@ export class SNetServer extends TypedEmitter<SNetServerEvents> {
         v.lastTime = Date.now();
         v.times++;
 
-        this.sendPacket(v.uniqueId, v.packetId, v.priority, v.bs, v.address, v.port);
+        sendPacket(this.socket, v.uniqueId, v.packetId, v.priority, v.bs, v.address, v.port);
 
         if (v.priority === SNET_PRIORITES.SYSTEM && !((v.address + ':' + v.port) in this.clients))
           continue;

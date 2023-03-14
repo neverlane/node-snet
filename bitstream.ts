@@ -12,7 +12,8 @@ export class BitStream {
   static from(value: number[]): BitStream;
   static from(value: BitStream): BitStream;
   static from(value: Buffer): BitStream;
-  static from(value: number[] | Buffer | BitStream): BitStream {
+  static from(value: Uint8Array): BitStream;
+  static from(value: number[] | Buffer | BitStream | Uint8Array): BitStream {
     const bs = new BitStream();
     if (value instanceof BitStream) {
       const bsBuffer = value.getBuffer();
@@ -34,112 +35,116 @@ export class BitStream {
     this.buffer.copy(bf);
     this.buffer = bf;
   }
+  
+  public slice(start: number, end?: number) {
+    return Uint8Array.prototype.slice.call(this.buffer, start, end);
+  }
 
-  writeBoolean(value: boolean): void {
+  public writeBoolean(value: boolean): void {
     this.addBytes(1);
     this.buffer[this.writePosition++] = Number(value);
   }
 
-  writeInt8(value: number): void {
+  public writeInt8(value: number): void {
     this.addBytes(1);
     this.buffer[this.writePosition++] = value;
   }
-  writeUInt8(value: number): void {
+  public writeUInt8(value: number): void {
     this.addBytes(1);
     this.buffer[this.writePosition++] = value;
   }
 
-  writeInt16(value: number): void {
+  public writeInt16(value: number): void {
     this.addBytes(2);
     this.buffer.writeInt16LE(value, this.writePosition);
     this.writePosition += 2;
   }
-  writeUInt16(value: number): void {
+  public writeUInt16(value: number): void {
     this.addBytes(2);
     this.buffer.writeUInt16LE(value, this.writePosition);
     this.writePosition += 2;
   }
 
-  writeInt32(value: number): void {
+  public writeInt32(value: number): void {
     this.addBytes(4);
     this.buffer.writeInt32LE(value, this.writePosition);
     this.writePosition += 4;
   }
-  writeUInt32(value: number): void {
+  public writeUInt32(value: number): void {
     this.addBytes(4);
     this.buffer.writeUInt32LE(value, this.writePosition);
     this.writePosition += 4;
   }
 
-  writeFloat(value: number): void {
+  public writeFloat(value: number): void {
     this.addBytes(4);
     this.buffer.writeFloatLE(value, this.writePosition);
     this.writePosition += 4;
   }
 
-  writeString(value: string): void {
+  public writeString(value: string): void {
     this.addBytes(value.length);
     this.buffer.write(value, 'ascii');
     this.writePosition += value.length;
   }
 
-  readBoolean(): boolean {
+  public readBoolean(): boolean {
     return this.buffer[this.readPosition++] !== 0;
   }
 
-  readInt8(): number {
+  public readInt8(): number {
     return this.buffer[this.readPosition++];
   }
-  readUInt8(): number {
+  public readUInt8(): number {
     return this.buffer[this.readPosition++];
   }
 
-  readInt16(): number {
+  public readInt16(): number {
     const v = this.buffer.readInt16LE(this.readPosition);
     this.readPosition += 2;
     return v;
   }
-  readUInt16(): number {
+  public readUInt16(): number {
     const v = this.buffer.readUInt16LE(this.readPosition);
     this.readPosition += 2;
     return v;
   }
 
-  readInt32(): number {
+  public readInt32(): number {
     const v = this.buffer.readInt32LE(this.readPosition);
     this.readPosition += 4;
     return v;
   }
-  readUInt32(): number {
+  public readUInt32(): number {
     const v = this.buffer.readUInt32LE(this.readPosition);
     this.readPosition += 4;
     return v;
   }
   
-  readFloat(): number {
+  public readFloat(): number {
     const v = this.buffer.readFloatLE(this.readPosition);
     this.readPosition += 4;
     return v;
   }
 
-  readString(length: number): string {
+  public readString(length: number): string {
     let value = <Buffer> Uint8Array.prototype.slice.call(this.buffer, this.readPosition, this.readPosition + length);
     this.readPosition += length;
     return value.toString('ascii');
   }
 
-  resetReadPosition(): void {
+  public resetReadPosition(): void {
     this.readPosition = 0;
   }
-  resetWritePosition(): void {
+  public resetWritePosition(): void {
     this.writePosition = 0;
   }
 
-  getBuffer(): Buffer {
+  public getBuffer(): Buffer {
     return this.buffer;
   }
 
-  toString() {
+  public toString() {
     return this.buffer.toString('ascii');
   }
 
