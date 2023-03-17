@@ -30,6 +30,27 @@ export class BitStream {
     return this.buffer.length;
   }
 
+  public setReadPosition(v: number): void {
+    this.readPosition = v;
+  }
+  public setWritePosition(v: number): void {
+    this.writePosition = v;
+  }
+
+  public ignoreReadPosition(v: number): void {
+    this.readPosition += v;
+  }
+  public ignoreWritePosition(v: number): void {
+    this.writePosition += v;
+  }
+
+  public resetReadPosition(): void {
+    this.readPosition = 0;
+  }
+  public resetWritePosition(): void {
+    this.writePosition = 0;
+  }
+
   private addBytes(valueOfBytes: number) {
     const bf = Buffer.alloc(this.buffer.length + valueOfBytes);
     this.buffer.copy(bf);
@@ -131,13 +152,6 @@ export class BitStream {
     let value = <Buffer> Uint8Array.prototype.slice.call(this.buffer, this.readPosition, this.readPosition + length);
     this.readPosition += length;
     return value.toString('ascii');
-  }
-
-  public resetReadPosition(): void {
-    this.readPosition = 0;
-  }
-  public resetWritePosition(): void {
-    this.writePosition = 0;
   }
 
   public getBuffer(): Buffer {
