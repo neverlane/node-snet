@@ -84,7 +84,7 @@ export class BitStream {
 
   public writeString(value: string): void {
     this.addBytes(value.length);
-    this.buffer.write(value, 'ascii');
+    this.buffer.write(value, this.writePosition, 'ascii');
     this.writePosition += value.length;
   }
 
