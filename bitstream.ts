@@ -103,9 +103,9 @@ export class BitStream {
     this.writePosition += 4;
   }
 
-  public writeString(value: string): void {
+  public writeString(value: string, encoding: BufferEncoding = 'ascii'): void {
     this.addBytes(value.length);
-    this.buffer.write(value, this.writePosition, 'ascii');
+    this.buffer.write(value, this.writePosition, encoding);
     this.writePosition += value.length;
   }
 
@@ -148,18 +148,18 @@ export class BitStream {
     return v;
   }
 
-  public readString(length: number): string {
+  public readString(length: number, encoding: BufferEncoding = 'ascii'): string {
     let value = <Buffer> Uint8Array.prototype.slice.call(this.buffer, this.readPosition, this.readPosition + length);
     this.readPosition += length;
-    return value.toString('ascii');
+    return value.toString(encoding);
   }
 
   public getBuffer(): Buffer {
     return this.buffer;
   }
 
-  public toString() {
-    return this.buffer.toString('ascii');
+  public toString(encoding: BufferEncoding = 'ascii') {
+    return this.buffer.toString(encoding);
   }
 
 }
