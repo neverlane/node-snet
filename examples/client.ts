@@ -12,5 +12,7 @@ client.on('ready', () => {
 });
 
 client.on('onReceivePacket', async (id, bs) => {
-  console.log('receive:', id, bs.toString());
+  console.log('onReceivePacket:', id, bs.toString());
 });
+
+client.connect();

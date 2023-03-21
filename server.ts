@@ -7,12 +7,16 @@ import { SNET_BLOCK_PACKET, SNET_CONFIRM_PRIORITY, SNET_PRIORITES } from './type
 export interface ServerOptions {
   address?: string;
   port?: number;
+  clientTimeout?: number;
+  blockPacketTimeout?: number;
 }
 
 export interface SNetServerEvents {
   'onReceivePacket': (packetId: number, bs: BitStream, address: string, port: number) => unknown;
   'onClientUpdate': (address: string, port: number, type: 'connect' | 'timeout') => unknown;
   'ready': () => unknown;
+  'close': () => unknown;
+  'error': (err: Error) => unknown;
 }
 
 export interface SNetServerPacket {
@@ -32,16 +36,22 @@ export class SNetServer extends TypedEmitter<SNetServerEvents> {
   private uniqueId: number = 0;
   private lastIds: Record<string, number[]> = {};
   private packets: SNetServerPacket[] = [];
-  private socket: Socket;
+  public socket: Socket;
   public clients: Record<string, number> = {};
   public blacklist: [string, number][] = [];
+  public clientTimeout: number = 60000;
+  public blockPacketTimeout: number = 60000;
 
-  constructor({ address, port }: ServerOptions) {
+  constructor({ address, port, clientTimeout, blockPacketTimeout }: ServerOptions) {
     super();
     if (address) this.address = address;
     if (port) this.port = port;
+    if (clientTimeout) this.clientTimeout = clientTimeout;
+    if (blockPacketTimeout) this.blockPacketTimeout = blockPacketTimeout;
     this.socket = createSocket('udp4');
-    this.socket.bind(this.port, this.address, () => this.emit('ready'));
+    this.socket.on('listening', () => this.emit('ready'));
+    this.socket.on('error', (err) => this.emit('error', err));
+    this.socket.on('close', () => this.emit('close'));
     this.socket.on('message', (buffer, rinfo) => this.receivePacket(buffer, rinfo.address, rinfo.port));
     const tick = () => setTimeout(() => {
       this.tick();
@@ -50,9 +60,24 @@ export class SNetServer extends TypedEmitter<SNetServerEvents> {
     tick();
   }
 
+  public listen(): Promise<void>
+  public listen(port: number): Promise<void>
+  public listen(port: number, address: string): Promise<void>
+  public listen(port?: number, address?: string): Promise<void> {
+    return new Promise<void>((res) => {
+      this.port = port ?? this.port;
+      this.address = address ?? this.address;
+      this.socket.bind(this.port, this.address, res);
+    });
+  }
+
+  public stop() {
+    return new Promise<void>(res => this.socket.close(res));
+  }
+
   private tick() {
     for (const [k, v] of Object.entries(this.clients)) {
-      if (Date.now() - v >= 60000) {
+      if (Date.now() - v >= this.clientTimeout) {
         delete this.clients[k];
         delete this.lastIds[k];
         const [address, port] = k.split(':');
@@ -109,7 +134,7 @@ export class SNetServer extends TypedEmitter<SNetServerEvents> {
 
     if (isBlocked) { 
       if (Date.now() >= this.blacklist[index][1]) {
-        this.blacklist[index][1] = Date.now() + 60000;
+        this.blacklist[index][1] = Date.now() + this.blockPacketTimeout;
         this.send(SNET_BLOCK_PACKET, new BitStream(), SNET_PRIORITES.BYPASS, address, port);
       }
       return false;

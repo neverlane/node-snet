@@ -12,6 +12,8 @@ export interface ClientOptions {
 export interface SNetClientEvents {
   'onReceivePacket': (packetId: number, bs: BitStream) => unknown;
   'ready': () => unknown;
+  'close': () => unknown;
+  'error': (err: Error) => unknown;
 }
 
 export interface SNetClientPacket {
@@ -30,21 +32,37 @@ export class SNetClient extends TypedEmitter<SNetClientEvents> {
   private uniqueId: number = 0;
   private lastIds: number[] = [];
   private packets: SNetClientPacket[] = [];
-  private socket: Socket;
+  public socket: Socket;
 
   constructor({ address, port }: ClientOptions) {
     super();
     if (address) this.address = address;
     if (port) this.port = port;
     this.socket = createSocket('udp4');
-    this.socket.connect(this.port, this.address);
-    this.socket.on('message', (buffer) => this.receivePacket(buffer));
     this.socket.on('connect', () => this.emit('ready'));
+    this.socket.on('message', (buffer) => this.receivePacket(buffer));
+    this.socket.on('close', () => this.emit('close'));
+    this.socket.on('error', (err) => this.emit('error', err));
     const tick = () => setTimeout(() => {
       this.tick();
       tick();
     }, 50);
     tick();
+  }
+
+  public connect(): Promise<void>
+  public connect(port: number): Promise<void>
+  public connect(port: number, address: string): Promise<void>
+  public connect(port?: number, address?: string): Promise<void> {
+    return new Promise<void>((res) => {
+      this.port = port ?? this.port;
+      this.address = address ?? this.address;
+      this.socket.connect(this.port, this.address, res);
+    });
+  }
+
+  public disconnect() {
+    return new Promise<void>(res => this.socket.close(res));
   }
 
   private tick() {
