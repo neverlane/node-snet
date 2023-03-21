@@ -58,7 +58,7 @@ export class BitStream {
   }
   
   public slice(start: number, end?: number) {
-    return Uint8Array.prototype.slice.call(this.buffer, start, end);
+    return BitStream.from(<Buffer> Uint8Array.prototype.slice.call(this.buffer, start, end));
   }
 
   public writeBoolean(value: boolean): void {
