@@ -129,8 +129,9 @@ export class BitStream {
   }
 
   public readBytes(size: number) {
+    const value = this.sliceBuffer(this.readPosition, this.readPosition + size);
     this.readPosition += size;
-    return this.sliceBuffer(this.readPosition, this.readPosition + size);
+    return value;
   }
 
   public readBoolean(): boolean {
