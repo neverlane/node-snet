@@ -1,0 +1,37 @@
+{
+  "name": "node-snet",
+  "version": "1.0.0",
+  "description": "Simple Network interface layer on UDP",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts"
+  },
+  "homepage": "https://github.com/neverlane/node-snet",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/neverlane/node-snet.git"
+  },
+  "keywords": [
+    "snet",
+    "slnet",
+    "network",
+    "simple",
+    "modern",
+    "promise",
+    "typescript"
+  ],
+  "author": "neverlane",
+  "license": "GPL-3.0",
+  "devDependencies": {
+    "@types/node": "^18.7.8",
+    "tsup": "^6.5.0",
+    "typescript": "^4.7.4"
+  }
+}
