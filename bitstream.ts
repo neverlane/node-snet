@@ -1,7 +1,7 @@
 export class BitStream {
   private buffer: Buffer;
-  private readPosition: number;
-  private writePosition: number;
+  public readPosition: number;
+  public writePosition: number;
 
   constructor() {
     this.buffer = Buffer.alloc(0);
@@ -57,56 +57,79 @@ export class BitStream {
     this.buffer = bf;
   }
   
-  public slice(start: number, end?: number) {
-    return BitStream.from(<Buffer> Uint8Array.prototype.slice.call(this.buffer, start, end));
+  public sliceBuffer(start: number, end?: number) {
+    return <Buffer> Uint8Array.prototype.slice.call(this.buffer, start, end)
   }
 
-  public writeBoolean(value: boolean): void {
+  public slice(start: number, end?: number) {
+    return BitStream.from(this.sliceBuffer(start, end));
+  }
+
+  public writeBytes(bytes: Uint8Array, size: number = bytes.length) {
+    this.buffer = Buffer.concat([this.buffer, bytes]);
+    this.writePosition += size;
+    return this;
+  }
+
+  public writeBoolean(value: boolean) {
     this.addBytes(1);
     this.buffer[this.writePosition++] = Number(value);
+    return this;
   }
 
-  public writeInt8(value: number): void {
+  public writeInt8(value: number) {
     this.addBytes(1);
     this.buffer[this.writePosition++] = value;
+    return this;
   }
-  public writeUInt8(value: number): void {
+  public writeUInt8(value: number) {
     this.addBytes(1);
     this.buffer[this.writePosition++] = value;
+    return this;
   }
 
-  public writeInt16(value: number): void {
+  public writeInt16(value: number) {
     this.addBytes(2);
     this.buffer.writeInt16LE(value, this.writePosition);
     this.writePosition += 2;
+    return this;
   }
-  public writeUInt16(value: number): void {
+  public writeUInt16(value: number) {
     this.addBytes(2);
     this.buffer.writeUInt16LE(value, this.writePosition);
     this.writePosition += 2;
+    return this;
   }
 
-  public writeInt32(value: number): void {
+  public writeInt32(value: number) {
     this.addBytes(4);
     this.buffer.writeInt32LE(value, this.writePosition);
     this.writePosition += 4;
+    return this;
   }
-  public writeUInt32(value: number): void {
+  public writeUInt32(value: number) {
     this.addBytes(4);
     this.buffer.writeUInt32LE(value, this.writePosition);
     this.writePosition += 4;
+    return this;
   }
 
-  public writeFloat(value: number): void {
+  public writeFloat(value: number) {
     this.addBytes(4);
     this.buffer.writeFloatLE(value, this.writePosition);
     this.writePosition += 4;
+    return this;
   }
 
-  public writeString(value: string, encoding: BufferEncoding = 'ascii'): void {
+  public writeString(value: string, encoding: BufferEncoding = 'ascii') {
     this.addBytes(value.length);
     this.buffer.write(value, this.writePosition, encoding);
     this.writePosition += value.length;
+    return this;
+  }
+
+  public readBytes(size: number) {
+    return this.sliceBuffer(this.readPosition, this.readPosition + size);
   }
 
   public readBoolean(): boolean {
@@ -149,7 +172,7 @@ export class BitStream {
   }
 
   public readString(length: number, encoding: BufferEncoding = 'ascii'): string {
-    let value = <Buffer> Uint8Array.prototype.slice.call(this.buffer, this.readPosition, this.readPosition + length);
+    let value = this.readBytes(length);
     this.readPosition += length;
     return value.toString(encoding);
   }
@@ -161,5 +184,4 @@ export class BitStream {
   public toString(encoding: BufferEncoding = 'ascii') {
     return this.buffer.toString(encoding);
   }
-
 }
