@@ -1,6 +1,6 @@
 {
   "name": "node-snet",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Simple Network interface layer on UDP",
   "main": "./dist/index.js",
   "exports": {
@@ -33,5 +33,8 @@
     "@types/node": "^18.7.8",
     "tsup": "^6.5.0",
     "typescript": "^4.7.4"
+  },
+  "dependencies": {
+    "node-snet": "^1.0.0"
   }
 }

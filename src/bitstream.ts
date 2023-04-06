@@ -129,6 +129,7 @@ export class BitStream {
   }
 
   public readBytes(size: number) {
+    this.readPosition += size;
     return this.sliceBuffer(this.readPosition, this.readPosition + size);
   }
 
@@ -173,7 +174,6 @@ export class BitStream {
 
   public readString(length: number, encoding: BufferEncoding = 'ascii'): string {
     let value = this.readBytes(length);
-    this.readPosition += length;
     return value.toString(encoding);
   }
 
