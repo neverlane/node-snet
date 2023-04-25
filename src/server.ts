@@ -4,7 +4,7 @@ import { BitStream } from './bitstream';
 import { getPacket, sendPacket } from './net-utils';
 import { SNET_BLOCK_PACKET, SNET_CONFIRM_PRIORITY, SNET_PRIORITES } from './types';
 
-export interface ServerOptions {
+export interface SNetServerOptions {
   address?: string;
   port?: number;
   clientTimeout?: number;
@@ -42,7 +42,7 @@ export class SNetServer extends TypedEmitter<SNetServerEvents> {
   public clientTimeout: number = 60000;
   public blockPacketTimeout: number = 60000;
 
-  constructor({ address, port, clientTimeout, blockPacketTimeout }: ServerOptions) {
+  constructor({ address, port, clientTimeout, blockPacketTimeout }: SNetServerOptions) {
     super();
     if (address) this.address = address;
     if (port) this.port = port;

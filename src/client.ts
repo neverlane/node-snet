@@ -4,7 +4,7 @@ import { BitStream } from './bitstream';
 import { getPacket, sendPacket } from './net-utils';
 import { SNET_CONFIRM_PRIORITY, SNET_PRIORITES, SNET_STATUSES } from './types';
 
-export interface ClientOptions {
+export interface SNetClientOptions {
   address?: string;
   port?: number;
 }
@@ -34,7 +34,7 @@ export class SNetClient extends TypedEmitter<SNetClientEvents> {
   private packets: SNetClientPacket[] = [];
   public socket: Socket;
 
-  constructor({ address, port }: ClientOptions) {
+  constructor({ address, port }: SNetClientOptions) {
     super();
     if (address) this.address = address;
     if (port) this.port = port;
