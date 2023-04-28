@@ -4,14 +4,14 @@ import { BitStream } from './bitstream';
 import { getPacket, sendPacket } from './net-utils';
 import { SNET_BLOCK_PACKET, SNET_CONFIRM_PRIORITY, SNET_PRIORITES } from './types';
 
-export interface SNetServerOptions {
+export interface ServerOptions {
   address?: string;
   port?: number;
   clientTimeout?: number;
   blockPacketTimeout?: number;
 }
 
-export interface SNetServerEvents {
+export interface ServerEvents {
   'onReceivePacket': (packetId: number, bs: BitStream, address: string, port: number) => unknown;
   'onClientUpdate': (address: string, port: number, type: 'connect' | 'timeout') => unknown;
   'ready': () => unknown;
@@ -19,7 +19,7 @@ export interface SNetServerEvents {
   'error': (err: Error) => unknown;
 }
 
-export interface SNetServerPacket {
+export interface ServerPacket {
   uniqueId: number;
   packetId: number;
   priority: SNET_PRIORITES;
@@ -30,19 +30,19 @@ export interface SNetServerPacket {
   port: number;
 }
 
-export class SNetServer extends TypedEmitter<SNetServerEvents> {
+export class Server extends TypedEmitter<ServerEvents> {
   public address: string = '0.0.0.0';
   public port: number = 13322;
   private uniqueId: number = 0;
   private lastIds: Record<string, number[]> = {};
-  private packets: SNetServerPacket[] = [];
+  private packets: ServerPacket[] = [];
   public socket: Socket;
   public clients: Record<string, number> = {};
   public blacklist: [string, number][] = [];
   public clientTimeout: number = 60000;
   public blockPacketTimeout: number = 60000;
 
-  constructor({ address, port, clientTimeout, blockPacketTimeout }: SNetServerOptions) {
+  constructor({ address, port, clientTimeout, blockPacketTimeout }: ServerOptions = {}) {
     super();
     if (address) this.address = address;
     if (port) this.port = port;
@@ -180,7 +180,7 @@ export class SNetServer extends TypedEmitter<SNetServerEvents> {
   }
 
   private resendPackets() {
-    const _packets: SNetServerPacket[] = [];
+    const _packets: ServerPacket[] = [];
     for (let i = this.packets.length; i >= 0; i--) {
       const v = this.packets[i];
       if (!v) continue;

@@ -4,19 +4,19 @@ import { BitStream } from './bitstream';
 import { getPacket, sendPacket } from './net-utils';
 import { SNET_CONFIRM_PRIORITY, SNET_PRIORITES, SNET_STATUSES } from './types';
 
-export interface SNetClientOptions {
+export interface ClientOptions {
   address?: string;
   port?: number;
 }
 
-export interface SNetClientEvents {
+export interface ClientEvents {
   'onReceivePacket': (packetId: number, bs: BitStream) => unknown;
   'ready': () => unknown;
   'close': () => unknown;
   'error': (err: Error) => unknown;
 }
 
-export interface SNetClientPacket {
+export interface ClientPacket {
   uniqueId: number;
   packetId: number;
   priority: SNET_PRIORITES;
@@ -25,16 +25,16 @@ export interface SNetClientPacket {
   times: number;
 }
 
-export class SNetClient extends TypedEmitter<SNetClientEvents> {
+export class Client extends TypedEmitter<ClientEvents> {
   public address: string = '127.0.0.1';
   public port: number = 13322;
   public status: SNET_STATUSES = SNET_STATUSES.DISCONNECTED;
   private uniqueId: number = 0;
   private lastIds: number[] = [];
-  private packets: SNetClientPacket[] = [];
+  private packets: ClientPacket[] = [];
   public socket: Socket;
 
-  constructor({ address, port }: SNetClientOptions) {
+  constructor({ address, port }: ClientOptions = {}) {
     super();
     if (address) this.address = address;
     if (port) this.port = port;
@@ -115,7 +115,7 @@ export class SNetClient extends TypedEmitter<SNetClientEvents> {
   }
 
   private resendPackets() {
-    const _packets: SNetClientPacket[] = [];
+    const _packets: ClientPacket[] = [];
     for (let i = this.packets.length; i >= 0; i--) {
       const v = this.packets[i];
       if (!v) continue;

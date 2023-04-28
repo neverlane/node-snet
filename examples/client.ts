@@ -1,6 +1,6 @@
-import { SNetClient, BitStream } from '../src';
+import { Client, BitStream } from '../src';
 
-const client = new SNetClient({
+const client = new Client({
   port: 11321
 });
 

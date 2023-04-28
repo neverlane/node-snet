@@ -1,6 +1,6 @@
-import { SNetServer, BitStream } from '../src';
+import { Server, BitStream } from '../src';
 
-const server = new SNetServer({
+const server = new Server({
   port: 11321,
   clientTimeout: 10000
 });
