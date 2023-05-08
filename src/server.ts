@@ -9,6 +9,7 @@ export interface ServerOptions {
   port?: number;
   clientTimeout?: number;
   blockPacketTimeout?: number;
+  maxTransferBytes?: number;
 }
 
 export interface ServerEvents {
@@ -33,6 +34,7 @@ export interface ServerPacket {
 export class Server extends TypedEmitter<ServerEvents> {
   public address: string = '0.0.0.0';
   public port: number = 13322;
+  public maxTransferBytes: number = 512;
   private uniqueId: number = 0;
   private lastIds: Record<string, number[]> = {};
   private packets: ServerPacket[] = [];
@@ -42,13 +44,18 @@ export class Server extends TypedEmitter<ServerEvents> {
   public clientTimeout: number = 60000;
   public blockPacketTimeout: number = 60000;
 
-  constructor({ address, port, clientTimeout, blockPacketTimeout }: ServerOptions = {}) {
+  constructor({ address, port, clientTimeout, blockPacketTimeout, maxTransferBytes }: ServerOptions = {}) {
     super();
     if (address) this.address = address;
     if (port) this.port = port;
     if (clientTimeout) this.clientTimeout = clientTimeout;
     if (blockPacketTimeout) this.blockPacketTimeout = blockPacketTimeout;
-    this.socket = createSocket('udp4');
+    this.socket = createSocket({
+      type: 'udp4',
+      // TODO: try fix this
+      recvBufferSize: this.maxTransferBytes,
+      sendBufferSize: this.maxTransferBytes
+    });
     this.socket.on('listening', () => this.emit('ready'));
     this.socket.on('error', (err) => this.emit('error', err));
     this.socket.on('close', () => this.emit('close'));

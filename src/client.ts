@@ -7,6 +7,7 @@ import { SNET_CONFIRM_PRIORITY, SNET_PRIORITES, SNET_STATUSES } from './types';
 export interface ClientOptions {
   address?: string;
   port?: number;
+  maxTransferBytes?: number;
 }
 
 export interface ClientEvents {
@@ -28,17 +29,24 @@ export interface ClientPacket {
 export class Client extends TypedEmitter<ClientEvents> {
   public address: string = '127.0.0.1';
   public port: number = 13322;
+  public maxTransferBytes: number = 512;
   public status: SNET_STATUSES = SNET_STATUSES.DISCONNECTED;
   private uniqueId: number = 0;
   private lastIds: number[] = [];
   private packets: ClientPacket[] = [];
   public socket: Socket;
 
-  constructor({ address, port }: ClientOptions = {}) {
+  constructor({ address, port, maxTransferBytes }: ClientOptions = {}) {
     super();
     if (address) this.address = address;
     if (port) this.port = port;
-    this.socket = createSocket('udp4');
+    if (maxTransferBytes) this.maxTransferBytes = maxTransferBytes;
+    this.socket = createSocket({
+      type: 'udp4',
+      // TODO: try fix this
+      recvBufferSize: this.maxTransferBytes,
+      sendBufferSize: this.maxTransferBytes
+    });
     this.socket.on('connect', () => this.emit('ready'));
     this.socket.on('message', (buffer) => this.receivePacket(buffer));
     this.socket.on('close', () => this.emit('close'));
