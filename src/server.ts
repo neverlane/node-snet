@@ -113,6 +113,7 @@ export class Server extends TypedEmitter<ServerEvents> {
   }
 
   public send(packetId: number, bs: BitStream, priority: SNET_PRIORITES, address: string, port: number) {
+    if (bs.length > this.maxTransferBytes) return;
     const uniqueId = this.uniqueId;
     this.uniqueId++;
     if (this.uniqueId >= 4294967295) {
@@ -147,9 +148,11 @@ export class Server extends TypedEmitter<ServerEvents> {
       return false;
     }
 
+    
     const packet = getPacket(buffer);
     if (packet === false) return false;
     const { uniqueId, packetId, priority, data } = packet;
+    if (data.length > this.maxTransferBytes) return;
     
     if (priority > 0) {
       const newBs = new BitStream();
