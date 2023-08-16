@@ -50,6 +50,7 @@ export class Server extends TypedEmitter<ServerEvents> {
     if (port) this.port = port;
     if (clientTimeout) this.clientTimeout = clientTimeout;
     if (blockPacketTimeout) this.blockPacketTimeout = blockPacketTimeout;
+    if (maxTransferBytes) this.maxTransferBytes = maxTransferBytes;
     this.socket = createSocket({
       type: 'udp4',
       // TODO: try fix this
