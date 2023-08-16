@@ -1,7 +1,8 @@
 import { Client, BitStream } from '../src';
 
 const client = new Client({
-  port: 11321
+  port: 11321,
+  ipVersion: 'v6'
 });
 
 client.on('ready', () => {

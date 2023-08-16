@@ -2,12 +2,14 @@ import { createSocket, Socket } from 'dgram';
 import { TypedEmitter } from './typed-emitter';
 import { BitStream } from './bitstream';
 import { getPacket, sendPacket } from './net-utils';
-import { SNET_CONFIRM_PRIORITY, SNET_PRIORITES, SNET_STATUSES } from './types';
+import { IpVersion, SNET_CONFIRM_PRIORITY, SNET_PRIORITES, SNET_STATUSES } from './types';
 
 export interface ClientOptions {
   address?: string;
   port?: number;
   maxTransferBytes?: number;
+  ipVersion?: IpVersion;
+  tickTimeout?: number;
 }
 
 export interface ClientEvents {
@@ -27,7 +29,8 @@ export interface ClientPacket {
 }
 
 export class Client extends TypedEmitter<ClientEvents> {
-  public address: string = '127.0.0.1';
+  public address: string;
+  public ipVersion: IpVersion = 'v4';
   public port: number = 13322;
   public maxTransferBytes: number = 512;
   public status: SNET_STATUSES = SNET_STATUSES.DISCONNECTED;
@@ -36,13 +39,14 @@ export class Client extends TypedEmitter<ClientEvents> {
   private packets: ClientPacket[] = [];
   public socket: Socket;
 
-  constructor({ address, port, maxTransferBytes }: ClientOptions = {}) {
+  constructor({ address, port, maxTransferBytes, ipVersion, tickTimeout = 50 }: ClientOptions = {}) {
     super();
-    if (address) this.address = address;
+    if (ipVersion) this.ipVersion = ipVersion;
+    this.address = !address ? this.ipVersion === 'v4' ? '127.0.0.1' : '::1' : address
     if (port) this.port = port;
     if (maxTransferBytes) this.maxTransferBytes = maxTransferBytes;
     this.socket = createSocket({
-      type: 'udp4',
+      type: this.ipVersion === 'v4' ? 'udp4' : 'udp6',
       // TODO: try fix this
       recvBufferSize: this.maxTransferBytes,
       sendBufferSize: this.maxTransferBytes
@@ -54,7 +58,7 @@ export class Client extends TypedEmitter<ClientEvents> {
     const tick = () => setTimeout(() => {
       this.tick();
       tick();
-    }, 50);
+    }, tickTimeout);
     tick();
   }
 

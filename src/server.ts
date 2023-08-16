@@ -2,7 +2,7 @@ import { createSocket, Socket } from 'dgram';
 import { TypedEmitter } from './typed-emitter';
 import { BitStream } from './bitstream';
 import { getPacket, sendPacket } from './net-utils';
-import { SNET_BLOCK_PACKET, SNET_CONFIRM_PRIORITY, SNET_PRIORITES } from './types';
+import { IpVersion, SNET_BLOCK_PACKET, SNET_CONFIRM_PRIORITY, SNET_PRIORITES } from './types';
 
 export interface ServerOptions {
   address?: string;
@@ -10,6 +10,8 @@ export interface ServerOptions {
   clientTimeout?: number;
   blockPacketTimeout?: number;
   maxTransferBytes?: number;
+  ipVersion?: IpVersion;
+  tickTimeout?: number;
 }
 
 export interface ServerEvents {
@@ -32,7 +34,8 @@ export interface ServerPacket {
 }
 
 export class Server extends TypedEmitter<ServerEvents> {
-  public address: string = '0.0.0.0';
+  public address: string;
+  public ipVersion: IpVersion = 'v4';
   public port: number = 13322;
   public maxTransferBytes: number = 512;
   private uniqueId: number = 0;
@@ -44,15 +47,16 @@ export class Server extends TypedEmitter<ServerEvents> {
   public clientTimeout: number = 60000;
   public blockPacketTimeout: number = 60000;
 
-  constructor({ address, port, clientTimeout, blockPacketTimeout, maxTransferBytes }: ServerOptions = {}) {
+  constructor({ address, port, clientTimeout, blockPacketTimeout, maxTransferBytes, ipVersion, tickTimeout = 50 }: ServerOptions = {}) {
     super();
-    if (address) this.address = address;
+    if (ipVersion) this.ipVersion = ipVersion;
+    this.address = !address ? this.ipVersion === 'v4' ? '127.0.0.1' : '::1' : address
     if (port) this.port = port;
     if (clientTimeout) this.clientTimeout = clientTimeout;
     if (blockPacketTimeout) this.blockPacketTimeout = blockPacketTimeout;
     if (maxTransferBytes) this.maxTransferBytes = maxTransferBytes;
     this.socket = createSocket({
-      type: 'udp4',
+      type: this.ipVersion === 'v4' ? 'udp4' : 'udp6',
       // TODO: try fix this
       recvBufferSize: this.maxTransferBytes,
       sendBufferSize: this.maxTransferBytes
@@ -64,7 +68,7 @@ export class Server extends TypedEmitter<ServerEvents> {
     const tick = () => setTimeout(() => {
       this.tick();
       tick();
-    }, 50);
+    }, tickTimeout);
     tick();
   }
 
@@ -88,8 +92,9 @@ export class Server extends TypedEmitter<ServerEvents> {
       if (Date.now() - v >= this.clientTimeout) {
         delete this.clients[k];
         delete this.lastIds[k];
-        const [address, port] = k.split(':');
-        this.emit('onClientUpdate', address, +port, 'timeout');
+        const aap = this.parseAddress(k);
+        if (!aap) continue; 
+        this.emit('onClientUpdate', aap[0], aap[1], 'timeout');
       }
     }
     this.resendPackets();
@@ -133,9 +138,17 @@ export class Server extends TypedEmitter<ServerEvents> {
   
   public sendAll(packetId: number, bs: BitStream, priority: SNET_PRIORITES) {
     for (const addressAndPort of Object.keys(this.clients)) {
-      const [address, port] = addressAndPort.split(':');
-      this.send(packetId, bs, priority, address, +port);
+      const aap = this.parseAddress(addressAndPort);
+      if (!aap) return null;
+      this.send(packetId, bs, priority, aap[0], aap[1]);
     }
+  }
+
+  private parseAddress(addressAndPort: string): [string, number] | null {
+    const matched = addressAndPort.match(/^(.+):(\d+)$/);
+    if (!matched) return null;
+    const [, address, port] = matched;
+    return [address, +port];
   }
 
   private receivePacket(buffer: Buffer, address: string, port: number) {

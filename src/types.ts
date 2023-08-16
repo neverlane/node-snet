@@ -12,3 +12,5 @@ export enum SNET_PRIORITES {
 export const
   SNET_CONFIRM_PRIORITY = 0xFFFFFFFF,
   SNET_BLOCK_PACKET = 0xFFFFFFFF - 1;
+
+export type IpVersion = 'v4' | 'v6';

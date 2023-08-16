@@ -2,7 +2,8 @@ import { Server, BitStream } from '../src';
 
 const server = new Server({
   port: 11321,
-  clientTimeout: 10000
+  clientTimeout: 10000,
+  ipVersion: 'v6'
 });
 
 server.on('ready', () => {
