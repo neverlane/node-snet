@@ -144,7 +144,7 @@ export class Server extends TypedEmitter<ServerEvents> {
     }
   }
 
-  private parseAddress(addressAndPort: string): [string, number] | null {
+  public parseAddress(addressAndPort: string): [string, number] | null {
     const matched = addressAndPort.match(/^(.+):(\d+)$/);
     if (!matched) return null;
     const [, address, port] = matched;
