@@ -33,10 +33,13 @@ export class Client extends TypedEmitter<ClientEvents> {
   public ipVersion: IpVersion = 'v4';
   public port: number = 13322;
   public maxTransferBytes: number = 512;
+  public tickTimeout: number = 50;
+  
   public status: SNET_STATUSES = SNET_STATUSES.DISCONNECTED;
   private uniqueId: number = 0;
   private lastIds: number[] = [];
   private packets: ClientPacket[] = [];
+  private tickLoop?: NodeJS.Timeout;
   public socket: Socket;
 
   constructor({ address, port, maxTransferBytes, ipVersion, tickTimeout = 50 }: ClientOptions = {}) {
@@ -45,6 +48,8 @@ export class Client extends TypedEmitter<ClientEvents> {
     this.address = !address ? this.ipVersion === 'v4' ? '127.0.0.1' : '::1' : address
     if (port) this.port = port;
     if (maxTransferBytes) this.maxTransferBytes = maxTransferBytes;
+    this.tickTimeout = tickTimeout;
+
     this.socket = createSocket({
       type: this.ipVersion === 'v4' ? 'udp4' : 'udp6',
       // TODO: try fix this
@@ -55,11 +60,9 @@ export class Client extends TypedEmitter<ClientEvents> {
     this.socket.on('message', (buffer) => this.receivePacket(buffer));
     this.socket.on('close', () => this.emit('close'));
     this.socket.on('error', (err) => this.emit('error', err));
-    const tick = () => setTimeout(() => {
-      this.tick();
-      tick();
-    }, tickTimeout);
-    tick();
+
+    this.on('ready', () => this.runTickLoop());
+    this.on('close', () => this.stopTickLoop());
   }
 
   public connect(): Promise<void>
@@ -79,6 +82,19 @@ export class Client extends TypedEmitter<ClientEvents> {
 
   private tick() {
     this.resendPackets();
+  }
+
+  private runTickLoop() {
+    this.tickLoop = setTimeout(() => {
+      this.tick();
+      this.runTickLoop();
+    }, this.tickTimeout);
+  }
+
+  private stopTickLoop() {
+    if (!this.tickLoop) return;
+    clearTimeout(this.tickLoop);
+    this.tickLoop = undefined;
   }
 
   public send(packetId: number, bs: BitStream, priority: SNET_PRIORITES) {

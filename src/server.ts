@@ -37,24 +37,30 @@ export class Server extends TypedEmitter<ServerEvents> {
   public address: string;
   public ipVersion: IpVersion = 'v4';
   public port: number = 13322;
+  public clientTimeout: number = 60000;
   public maxTransferBytes: number = 512;
+  public blockPacketTimeout: number = 60000;
+  private tickTimeout: number;
+  
   private uniqueId: number = 0;
   private lastIds: Record<string, number[]> = {};
   private packets: ServerPacket[] = [];
+  private tickLoop?: NodeJS.Timeout;
   public socket: Socket;
   public clients: Record<string, number> = {};
   public blacklist: [string, number][] = [];
-  public clientTimeout: number = 60000;
-  public blockPacketTimeout: number = 60000;
-
-  constructor({ address, port, clientTimeout, blockPacketTimeout, maxTransferBytes, ipVersion, tickTimeout = 50 }: ServerOptions = {}) {
+  
+  constructor({ ipVersion, address, port, clientTimeout, blockPacketTimeout, maxTransferBytes, tickTimeout = 50 }: ServerOptions = {}) {
     super();
+
     if (ipVersion) this.ipVersion = ipVersion;
     this.address = !address ? this.ipVersion === 'v4' ? '127.0.0.1' : '::1' : address
     if (port) this.port = port;
     if (clientTimeout) this.clientTimeout = clientTimeout;
     if (blockPacketTimeout) this.blockPacketTimeout = blockPacketTimeout;
     if (maxTransferBytes) this.maxTransferBytes = maxTransferBytes;
+    this.tickTimeout = tickTimeout;
+    
     this.socket = createSocket({
       type: this.ipVersion === 'v4' ? 'udp4' : 'udp6',
       // TODO: try fix this
@@ -65,11 +71,9 @@ export class Server extends TypedEmitter<ServerEvents> {
     this.socket.on('error', (err) => this.emit('error', err));
     this.socket.on('close', () => this.emit('close'));
     this.socket.on('message', (buffer, rinfo) => this.receivePacket(buffer, rinfo.address, rinfo.port));
-    const tick = () => setTimeout(() => {
-      this.tick();
-      tick();
-    }, tickTimeout);
-    tick();
+
+    this.on('ready', () => this.runTickLoop());
+    this.on('close', () => this.stopTickLoop());
   }
 
   public listen(): Promise<void>
@@ -98,6 +102,19 @@ export class Server extends TypedEmitter<ServerEvents> {
       }
     }
     this.resendPackets();
+  }
+
+  private runTickLoop() {
+    this.tickLoop = setTimeout(() => {
+      this.tick();
+      this.runTickLoop();
+    }, this.tickTimeout);
+  }
+
+  private stopTickLoop() {
+    if (!this.tickLoop) return;
+    clearTimeout(this.tickLoop);
+    this.tickLoop = undefined;
   }
 
   public isBlacklisted(address: string): [true, number] | [false] {
