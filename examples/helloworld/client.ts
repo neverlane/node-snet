@@ -1,4 +1,4 @@
-import { Client, BitStream } from '../src';
+import { Client, BitStream } from '../../src';
 
 const client = new Client({
   port: 11321,

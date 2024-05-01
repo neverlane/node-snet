@@ -1,4 +1,4 @@
-import { Server, BitStream } from '../src';
+import { Server, BitStream } from '../../src';
 
 const server = new Server({
   port: 11321,
