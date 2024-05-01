@@ -1,3 +1,5 @@
+import assert from 'node:assert';
+
 export class BitStream {
   private buffer: Buffer;
   public readPosition: number;
@@ -31,6 +33,7 @@ export class BitStream {
   }
 
   public setReadPosition(v: number): void {
+    assert(v <= this.buffer.length, "Read position out of bounds");
     this.readPosition = v;
   }
   public setWritePosition(v: number): void {
@@ -38,10 +41,10 @@ export class BitStream {
   }
 
   public ignoreReadPosition(v: number): void {
-    this.readPosition += v;
+    this.setReadPosition(this.readPosition + v);
   }
   public ignoreWritePosition(v: number): void {
-    this.writePosition += v;
+    this.setWritePosition(this.writePosition + v);
   }
 
   public resetReadPosition(): void {
@@ -128,52 +131,66 @@ export class BitStream {
     return this;
   }
 
+  protected assertRead(size: number) {
+    assert(this.readPosition + size <= this.buffer.length, "Read position out of bounds");
+  }
+
   public readBytes(size: number) {
+    this.assertRead(size);
     const value = this.sliceBuffer(this.readPosition, this.readPosition + size);
     this.readPosition += size;
     return value;
   }
 
   public readBoolean(): boolean {
+    this.assertRead(1);
     return this.buffer[this.readPosition++] !== 0;
   }
 
   public readInt8(): number {
-    return this.buffer[this.readPosition++];
+    this.assertRead(1);
+    return this.buffer.readInt8(this.readPosition++);
   }
   public readUInt8(): number {
-    return this.buffer[this.readPosition++];
+    this.assertRead(1);
+    return this.buffer.readUint8(this.readPosition++);
   }
 
   public readInt16(): number {
+    this.assertRead(2);
     const v = this.buffer.readInt16LE(this.readPosition);
     this.readPosition += 2;
     return v;
   }
   public readUInt16(): number {
+    this.assertRead(2);
     const v = this.buffer.readUInt16LE(this.readPosition);
     this.readPosition += 2;
     return v;
   }
 
   public readInt32(): number {
+    this.assertRead(4);
     const v = this.buffer.readInt32LE(this.readPosition);
     this.readPosition += 4;
     return v;
   }
   public readUInt32(): number {
+    this.assertRead(4);
     const v = this.buffer.readUInt32LE(this.readPosition);
     this.readPosition += 4;
     return v;
   }
   
   public readFloat(): number {
+    this.assertRead(4);
     const v = this.buffer.readFloatLE(this.readPosition);
     this.readPosition += 4;
     return v;
   }
 
   public readString(length: number, encoding: BufferEncoding = 'ascii'): string {
+    this.assertRead(length);
     let value = this.readBytes(length);
     return value.toString(encoding);
   }
