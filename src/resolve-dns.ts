@@ -1,4 +1,4 @@
-import { Resolver } from 'dns';
+import { Resolver } from 'node:dns';
 
 export interface ResolveDnsOptions {
   domain: string;

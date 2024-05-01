@@ -1,6 +1,6 @@
-import { Socket } from 'dgram';
+import type { Socket } from 'node:dgram';
 import { BitStream } from './bitstream';
-import { SNET_PRIORITES } from './types';
+import type { SNET_PRIORITES } from './types';
 
 export interface SNetPacketStruct {
   uniqueId: number;

@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 export type ListenerSignature<L> = { 
   [E in keyof L]: (...args: any[]) => any; 

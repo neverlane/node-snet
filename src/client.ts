@@ -1,4 +1,4 @@
-import { createSocket, Socket } from 'dgram';
+import { createSocket, Socket } from 'node:dgram';
 import { TypedEmitter } from './typed-emitter';
 import { BitStream } from './bitstream';
 import { getPacket, sendPacket } from './net-utils';
