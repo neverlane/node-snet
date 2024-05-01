@@ -6,3 +6,4 @@
 /docs
 .eslintrc.json
 node_modules
+*.tgz
