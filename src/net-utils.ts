@@ -13,7 +13,7 @@ export const EMPTY_BYTE = Buffer.from([0x0]);
 
 export const getPacket = (buffer: Buffer): SNetPacketStruct | false => {
   if (buffer[0] !== 0x0) return false;
-  const data = <Buffer> Uint8Array.prototype.slice.call(buffer, 1, -1);
+  const data = <Buffer> <unknown> Uint8Array.prototype.slice.call(buffer, 1, -1);
   try {
     let offset = 0;
     const uniqueId = data.readUInt32LE(offset);
@@ -24,7 +24,7 @@ export const getPacket = (buffer: Buffer): SNetPacketStruct | false => {
     offset += 4;
     const priority = data.readUInt8(offset);
     if (priority < 0) return false;
-    const cleanData = <Buffer> Uint8Array.prototype.slice.call(data, 9);
+    const cleanData = <Buffer> <unknown> Uint8Array.prototype.slice.call(data, 9);
     return {
       uniqueId,
       packetId,
