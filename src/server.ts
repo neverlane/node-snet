@@ -2,7 +2,7 @@ import { createSocket, Socket } from 'node:dgram';
 import { TypedEmitter } from './typed-emitter';
 import { BitStream } from './bitstream';
 import { getPacket, sendPacket } from './net-utils';
-import { IpVersion, SNET_BLOCK_PACKET, SNET_CONFIRM_PRIORITY, SNET_PRIORITES } from './types';
+import { SupportedEventNames, IpVersion, SNET_BLOCK_PACKET, SNET_CONFIRM_PRIORITY, SNET_PRIORITES } from './types';
 
 export interface ServerOptions {
   address?: string;
@@ -14,9 +14,13 @@ export interface ServerOptions {
   tickTimeout?: number;
 }
 
-export interface ServerEvents {
-  'onReceivePacket': (packetId: number, bs: BitStream, address: string, port: number) => unknown;
-  'onClientUpdate': (address: string, port: number, type: 'connect' | 'timeout') => unknown;
+export type ServerClientUpdateEvent = (address: string, port: number, type: 'connect' | 'timeout') => unknown;
+export type ServerReceivePacketEvent = (packetId: number, bs: BitStream, address: string, port: number) => unknown;
+
+const serverReceivePacketEvents: SupportedEventNames<'receivePacket'>[] = ['receivePacket', 'onReceivePacket'];
+const serverClientUpdateEvents: SupportedEventNames<'clientUpdate'>[] = ['clientUpdate', 'onClientUpdate'];
+
+export interface ServerEvents extends Record<SupportedEventNames<'clientUpdate'>, ServerClientUpdateEvent>, Record<SupportedEventNames<'receivePacket'>, ServerReceivePacketEvent> {
   'ready': () => unknown;
   'close': () => unknown;
   'error': (err: Error) => unknown;
@@ -72,6 +76,7 @@ export class Server extends TypedEmitter<ServerEvents> {
     this.socket.on('close', () => this.emit('close'));
     this.socket.on('message', (buffer, rinfo) => this.receivePacket(buffer, rinfo.address, rinfo.port));
 
+
     this.on('ready', () => this.runTickLoop());
     this.on('close', () => this.stopTickLoop());
   }
@@ -97,8 +102,8 @@ export class Server extends TypedEmitter<ServerEvents> {
         delete this.clients[k];
         delete this.lastIds[k];
         const aap = this.parseAddress(k);
-        if (!aap) continue; 
-        this.emit('onClientUpdate', aap[0], aap[1], 'timeout');
+        if (!aap) continue;
+        serverClientUpdateEvents.forEach((event) => this.emit(event, aap[0], aap[1], 'timeout')); 
       }
     }
     this.resendPackets();
@@ -202,11 +207,12 @@ export class Server extends TypedEmitter<ServerEvents> {
     this.lastIds[addressAndPort].push(uniqueId);
 
     if (!(addressAndPort in this.clients)) {
-      this.emit('onClientUpdate', address, port, 'connect');      
+      serverClientUpdateEvents.forEach((event) => this.emit(event, address, port, 'connect'));
     }
     this.clients[addressAndPort] = Date.now();
 
-    this.emit('onReceivePacket', packetId, BitStream.from(data), address, port);
+    const bs = BitStream.from(data);
+    serverReceivePacketEvents.forEach((event) => this.emit(event, packetId, bs, address, port));
 
     if (packetId === SNET_CONFIRM_PRIORITY) {
       const confBs = BitStream.from(data);

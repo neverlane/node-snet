@@ -14,3 +14,11 @@ export const
   SNET_BLOCK_PACKET = 0xFFFFFFFF - 1;
 
 export type IpVersion = 'v4' | 'v6';
+
+export type CamelToPascal<T extends string> = 
+  T extends `${infer FirstChar}${infer Rest}`
+  ? `${Capitalize<FirstChar>}${Rest}`
+  : never
+
+
+export type SupportedEventNames<T extends string> = T | `on${CamelToPascal<T>}`;

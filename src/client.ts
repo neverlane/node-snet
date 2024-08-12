@@ -2,7 +2,7 @@ import { createSocket, Socket } from 'node:dgram';
 import { TypedEmitter } from './typed-emitter';
 import { BitStream } from './bitstream';
 import { getPacket, sendPacket } from './net-utils';
-import { IpVersion, SNET_CONFIRM_PRIORITY, SNET_PRIORITES, SNET_STATUSES } from './types';
+import { SupportedEventNames, IpVersion, SNET_CONFIRM_PRIORITY, SNET_PRIORITES, SNET_STATUSES } from './types';
 
 export interface ClientOptions {
   address?: string;
@@ -12,8 +12,10 @@ export interface ClientOptions {
   tickTimeout?: number;
 }
 
-export interface ClientEvents {
-  'onReceivePacket': (packetId: number, bs: BitStream) => unknown;
+export type ClientReceivePacketEvent = (packetId: number, bs: BitStream) => unknown;
+const clientReceivePacketEvents: SupportedEventNames<'receivePacket'>[] = ['receivePacket', 'onReceivePacket'];
+
+export interface ClientEvents extends Record<typeof clientReceivePacketEvents[number], ClientReceivePacketEvent> {
   'ready': () => unknown;
   'close': () => unknown;
   'error': (err: Error) => unknown;
@@ -130,7 +132,8 @@ export class Client extends TypedEmitter<ClientEvents> {
     this.lastIds.push(uniqueId);
 
     this.status = SNET_STATUSES.CONNECTED;
-    this.emit('onReceivePacket', packetId, BitStream.from(data));
+    const bs = BitStream.from(data);
+    clientReceivePacketEvents.forEach((event) => this.emit(event, packetId, bs));
 
     if (packetId === SNET_CONFIRM_PRIORITY) {
       const confBs = BitStream.from(data);
