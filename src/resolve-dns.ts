@@ -31,4 +31,4 @@ export const resolveDns = ({ domain, version, servers }: ResolveDnsOptions): Pro
       }
     });
   });
-}
+};
