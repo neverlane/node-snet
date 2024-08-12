@@ -12,8 +12,8 @@ client.on('ready', () => {
   client.send(1, data, 4);
 });
 
-client.on('onReceivePacket', async (id, bs) => {
-  console.log('onReceivePacket:', id, bs.toString());
+client.on('receivePacket', async (id, bs) => {
+  console.log('receivePacket:', id, bs.toString());
 });
 
 client.connect();

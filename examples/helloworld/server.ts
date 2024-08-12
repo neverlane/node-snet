@@ -10,8 +10,8 @@ server.on('ready', () => {
   console.log(`@server: started at port ${server.port}`);
 });
 
-server.on('onReceivePacket', async (id, bs, address, port) => {
-  console.log(`onReceivePacket: ${address}:${port}`, id, bs.toString());
+server.on('receivePacket', async (id, bs, address, port) => {
+  console.log(`receivePacket: ${address}:${port}`, id, bs.toString());
   if (id === 1) {
     const data = new BitStream();
     data.writeString('snetwork');
@@ -19,8 +19,8 @@ server.on('onReceivePacket', async (id, bs, address, port) => {
   }
 });
 
-server.on('onClientUpdate', async (address, port, type) => {
-  console.log(`onClientUpdate ${address}:${port}:`, type);
+server.on('clientUpdate', async (address, port, type) => {
+  console.log(`clientUpdate ${address}:${port}:`, type);
 });
 
 server.listen();
