@@ -1,9 +1,0 @@
-/src
-/test
-/examples
-/dev
-/.github
-/docs
-.eslintrc.json
-node_modules
-*.tgz

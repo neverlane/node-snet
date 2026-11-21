@@ -1,0 +1,62 @@
+name: release
+
+on:
+  # run only after the ci workflow finishes successfully on master
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write # create git tags + github releases
+  id-token: write # npm trusted publishing (oidc) + provenance
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: publish node-snet
+    # gate on a green ci run (workflow_run) or an explicit manual trigger
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # full history + tags for release notes
+          # the exact commit ci validated (falls back to the branch on manual dispatch)
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - name: setup pnpm
+        uses: pnpm/action-setup@v6
+
+      # trusted publishing (oidc) needs node >= 22.14 and npm >= 11.5.1, and node-snet must list
+      # neverlane/node-snet + release.yml as trusted publisher on npmjs.com (`pnpm release:trust`).
+      # NPM_TOKEN is only a fallback while trusted publishing is not configured.
+      - name: setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: npm with trusted publishing
+        run: npm install -g npm@latest
+
+      - name: install
+        run: pnpm install --frozen-lockfile
+
+      # ci already ran typecheck/test on this commit: build → publish (skipped when the version
+      # is already on npm, so a push without a version bump is a no-op) → github release
+      - name: release
+        run: node scripts/release.mjs
+        env:
+          RELEASE_SKIP_GATE: "1"
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

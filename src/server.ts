@@ -1,253 +1,187 @@
-import { createSocket, Socket } from 'node:dgram';
-import { TypedEmitter } from './typed-emitter';
 import { BitStream } from './bitstream';
-import { getPacket, sendPacket } from './net-utils';
-import { SupportedEventNames, IpVersion, SNET_BLOCK_PACKET, SNET_CONFIRM_PRIORITY, SNET_PRIORITES } from './types';
+import type { SNetPacketStruct } from './net-utils';
+import { Peer, type PeerOptions } from './peer';
+import type { ITypedEmitter } from './typed-emitter';
+import { SNET_BLOCK_PACKET, SNET_PRIORITIES } from './types';
 
-export interface ServerOptions {
-  address?: string;
-  port?: number;
+export interface ServerOptions extends PeerOptions {
+  /** client is dropped after this long without packets, ms */
   clientTimeout?: number;
+  /** how often a blocked address is notified with SNET_BLOCK_PACKET, ms */
   blockPacketTimeout?: number;
-  maxTransferBytes?: number;
-  ipVersion?: IpVersion;
-  tickTimeout?: number;
 }
 
 export type ServerClientUpdateEvent = (address: string, port: number, type: 'connect' | 'timeout') => unknown;
-export type ServerReceivePacketEvent = (packetId: number, bs: BitStream, address: string, port: number) => unknown;
+export type ServerReceivePacketEvent = (packetId: number, bs: BitStream, address: string, port: number, client: ServerClient) => unknown;
 
-const serverReceivePacketEvents: SupportedEventNames<'receivePacket'>[] = ['receivePacket', 'onReceivePacket'];
-const serverClientUpdateEvents: SupportedEventNames<'clientUpdate'>[] = ['clientUpdate', 'onClientUpdate'];
+const serverReceivePacketEvents = ['receivePacket', 'onReceivePacket'] as const;
+const serverClientUpdateEvents = ['clientUpdate', 'onClientUpdate'] as const;
 
-export interface ServerEvents extends Record<SupportedEventNames<'clientUpdate'>, ServerClientUpdateEvent>, Record<SupportedEventNames<'receivePacket'>, ServerReceivePacketEvent> {
-  'ready': () => unknown;
-  'close': () => unknown;
-  'error': (err: Error) => unknown;
+export interface ServerEvents {
+  receivePacket: ServerReceivePacketEvent;
+  /** alias of receivePacket (Lua SNET name) */
+  onReceivePacket: ServerReceivePacketEvent;
+  clientUpdate: ServerClientUpdateEvent;
+  /** alias of clientUpdate (Lua SNET name) */
+  onClientUpdate: ServerClientUpdateEvent;
+  ready: () => unknown;
+  close: () => unknown;
+  error: (err: Error) => unknown;
+  connect: (client: ServerClient) => unknown;
+  timeout: (client: ServerClient) => unknown;
+  packetLost: (packetId: number, uniqueId: number, priority: SNET_PRIORITIES, address: string, port: number) => unknown;
 }
 
-export interface ServerPacket {
-  uniqueId: number;
-  packetId: number;
-  priority: SNET_PRIORITES;
-  bs: BitStream;
-  lastTime: number;
-  times: number;
-  address: string;
-  port: number;
-}
+/** a remote client as seen by the server */
+export class ServerClient {
+  public readonly connectedAt = Date.now();
+  public lastSeen = Date.now();
 
-export class Server extends TypedEmitter<ServerEvents> {
-  public address: string;
-  public ipVersion: IpVersion = 'v4';
-  public port: number = 13322;
-  public clientTimeout: number = 60000;
-  public maxTransferBytes: number = 512;
-  public blockPacketTimeout: number = 60000;
-  private tickTimeout: number;
-  
-  private uniqueId: number = 0;
-  private lastIds: Record<string, number[]> = {};
-  private packets: ServerPacket[] = [];
-  private tickLoop?: NodeJS.Timeout;
-  public socket: Socket;
-  public clients: Record<string, number> = {};
-  public blacklist: [string, number][] = [];
-  
-  constructor({ ipVersion, address, port, clientTimeout, blockPacketTimeout, maxTransferBytes, tickTimeout = 50 }: ServerOptions = {}) {
-    super();
+  constructor(private server: Server, public readonly address: string, public readonly port: number) {}
 
-    if (ipVersion) this.ipVersion = ipVersion;
-    this.address = !address ? this.ipVersion === 'v4' ? '127.0.0.1' : '::1' : address
-    if (port) this.port = port;
-    if (clientTimeout) this.clientTimeout = clientTimeout;
-    if (blockPacketTimeout) this.blockPacketTimeout = blockPacketTimeout;
-    if (maxTransferBytes) this.maxTransferBytes = maxTransferBytes;
-    this.tickTimeout = tickTimeout;
-    
-    this.socket = createSocket({
-      type: this.ipVersion === 'v4' ? 'udp4' : 'udp6',
-      // TODO: try fix this
-      recvBufferSize: this.maxTransferBytes,
-      sendBufferSize: this.maxTransferBytes
-    });
-    this.socket.on('listening', () => this.emit('ready'));
-    this.socket.on('error', (err) => this.emit('error', err));
-    this.socket.on('close', () => this.emit('close'));
-    this.socket.on('message', (buffer, rinfo) => this.receivePacket(buffer, rinfo.address, rinfo.port));
+  get key() { return `${this.address}:${this.port}`; }
 
-
-    this.on('ready', () => this.runTickLoop());
-    this.on('close', () => this.stopTickLoop());
+  send(packetId: number, bs: BitStream | Uint8Array, priority: SNET_PRIORITIES = SNET_PRIORITIES.BYPASS) {
+    return this.server.send(packetId, bs, priority, this.address, this.port);
   }
 
-  public listen(): Promise<void>
-  public listen(port: number): Promise<void>
-  public listen(port: number, address: string): Promise<void>
+  sendAsync(packetId: number, bs: BitStream | Uint8Array, priority: SNET_PRIORITIES = SNET_PRIORITIES.HIGH) {
+    return this.server.sendAsync(packetId, bs, priority, this.address, this.port);
+  }
+
+  /** forget the client (no event); it reconnects on its next packet */
+  kick() { this.server.dropClient(this); }
+}
+
+export class Server extends (Peer as unknown as abstract new (opts?: PeerOptions) => Peer & ITypedEmitter<ServerEvents>) {
+  public clientTimeout: number;
+  public blockPacketTimeout: number;
+  /** connected clients by `address:port` */
+  public clients = new Map<string, ServerClient>();
+  /** blocked address -> next time it is notified */
+  public blacklist = new Map<string, number>();
+
+  constructor(opts: ServerOptions = {}) {
+    super(opts);
+    this.clientTimeout = opts.clientTimeout ?? 60_000;
+    this.blockPacketTimeout = opts.blockPacketTimeout ?? 60_000;
+    this.socket.on('listening', () => {
+      this.startTickLoop();
+      this.emit('ready');
+    });
+  }
+
   public listen(port?: number, address?: string): Promise<void> {
-    return new Promise<void>((res) => {
-      this.port = port ?? this.port;
-      this.address = address ?? this.address;
-      this.socket.bind(this.port, this.address, res);
+    this.port = port ?? this.port;
+    this.address = address ?? this.address;
+    return new Promise<void>((res, rej) => {
+      const onError = (err: Error) => rej(err);
+      this.socket.once('error', onError);
+      this.socket.bind(this.port, this.address, () => {
+        this.socket.off('error', onError);
+        res();
+      });
     });
   }
 
-  public stop() {
-    return new Promise<void>(res => this.socket.close(res));
+  public stop(): Promise<void> {
+    return this.closeSocket();
   }
 
-  private tick() {
-    for (const [k, v] of Object.entries(this.clients)) {
-      if (Date.now() - v >= this.clientTimeout) {
-        delete this.clients[k];
-        delete this.lastIds[k];
-        const aap = this.parseAddress(k);
-        if (!aap) continue;
-        serverClientUpdateEvents.forEach((event) => this.emit(event, aap[0], aap[1], 'timeout')); 
-      }
-    }
-    this.resendPackets();
+  // ------------------------------------------------------------ blacklist
+
+  public isBlacklisted(address: string): boolean {
+    return this.blacklist.has(address);
   }
 
-  private runTickLoop() {
-    this.tickLoop = setTimeout(() => {
-      this.tick();
-      this.runTickLoop();
-    }, this.tickTimeout);
-  }
-
-  private stopTickLoop() {
-    if (!this.tickLoop) return;
-    clearTimeout(this.tickLoop);
-    this.tickLoop = undefined;
-  }
-
-  public isBlacklisted(address: string): [true, number] | [false] {
-    const index = this.blacklist.findIndex(v => v[0] === address);
-    if (index > -1) return [true, index];
-    return [false];
-  }
-
-  public blockAddress(address: string) {
-    if (this.isBlacklisted(address)[0]) return false;
-    this.blacklist.push([address, 0]);
+  public blockAddress(address: string): boolean {
+    if (this.blacklist.has(address)) return false;
+    this.blacklist.set(address, 0);
+    for (const c of [...this.clients.values()]) if (c.address === address) this.dropClient(c);
     return true;
   }
 
-  public unblockAddress(address: string) {
-    if (!this.isBlacklisted(address)[0]) return false;
-    this.blacklist = this.blacklist.filter(v => v[0] !== address);
-    return true;
+  public unblockAddress(address: string): boolean {
+    return this.blacklist.delete(address);
   }
 
-  public send(packetId: number, bs: BitStream, priority: SNET_PRIORITES, address: string, port: number) {
-    if (bs.length > this.maxTransferBytes) return;
-    const uniqueId = this.uniqueId;
-    this.uniqueId++;
-    if (this.uniqueId >= 4294967295) {
-      this.uniqueId = 0;
-    }
-    sendPacket(this.socket, uniqueId, packetId, priority, bs, address, port);
-    if (priority > 0) {
-      this.packets.push({
-        uniqueId, packetId,
-        priority, bs,
-        times: 0, lastTime: Date.now(),
-        address, port
-      });
+  // ------------------------------------------------------------ sending
+
+  /** returns the uniqueId of the packet */
+  public send(packetId: number, bs: BitStream | Uint8Array, priority: SNET_PRIORITIES, address: string, port: number): number {
+    return this.sendTo(packetId, bs, priority, address, port);
+  }
+
+  /** resolves when the client confirms the packet (immediately for BYPASS), rejects with PacketLostError */
+  public sendAsync(packetId: number, bs: BitStream | Uint8Array, priority: SNET_PRIORITIES, address: string, port: number): Promise<void> {
+    return this.sendToAsync(packetId, bs, priority, address, port);
+  }
+
+  public sendAll(packetId: number, bs: BitStream | Uint8Array, priority: SNET_PRIORITIES, except?: ServerClient | ServerClient[]) {
+    const skip = new Set(Array.isArray(except) ? except : except ? [except] : []);
+    for (const client of this.clients.values()) {
+      if (!skip.has(client)) this.send(packetId, bs, priority, client.address, client.port);
     }
   }
-  
-  public sendAll(packetId: number, bs: BitStream, priority: SNET_PRIORITES) {
-    for (const addressAndPort of Object.keys(this.clients)) {
-      const aap = this.parseAddress(addressAndPort);
-      if (!aap) return null;
-      this.send(packetId, bs, priority, aap[0], aap[1]);
-    }
+
+  public getClient(address: string, port: number): ServerClient | undefined {
+    return this.clients.get(`${address}:${port}`);
   }
 
   public parseAddress(addressAndPort: string): [string, number] | null {
-    const matched = addressAndPort.match(/^(.+):(\d+)$/);
-    if (!matched) return null;
-    const [, address, port] = matched;
-    return [address, +port];
+    const matched = addressAndPort.match(/^\[?(.+?)\]?:(\d+)$/);
+    return matched ? [matched[1], +matched[2]] : null;
   }
 
-  private receivePacket(buffer: Buffer, address: string, port: number) {
-    const [isBlocked, index] = this.isBlacklisted(address);
+  /** @internal */
+  public dropClient(client: ServerClient) {
+    if (this.clients.get(client.key) !== client) return;
+    this.clients.delete(client.key);
+    this.forgetRemote(client.address, client.port);
+  }
 
-    if (isBlocked) { 
-      if (Date.now() >= this.blacklist[index][1]) {
-        this.blacklist[index][1] = Date.now() + this.blockPacketTimeout;
-        this.send(SNET_BLOCK_PACKET, new BitStream(), SNET_PRIORITES.BYPASS, address, port);
-      }
-      return false;
+  // ------------------------------------------------------------ peer hooks
+
+  protected override accept(address: string, port: number): boolean {
+    if (!this.blacklist.has(address)) return true;
+    const now = Date.now();
+    if (now >= this.blacklist.get(address)!) {
+      this.blacklist.set(address, now + this.blockPacketTimeout);
+      this.send(SNET_BLOCK_PACKET, new BitStream(), SNET_PRIORITIES.BYPASS, address, port);
     }
+    return false;
+  }
 
-    
-    const packet = getPacket(buffer);
-    if (packet === false) return false;
-    const { uniqueId, packetId, priority, data } = packet;
-    if (data.length > this.maxTransferBytes) return;
-    
-    if (priority > 0) {
-      const newBs = new BitStream();
-      newBs.writeUInt32(uniqueId);
-      this.send(SNET_CONFIRM_PRIORITY, newBs, SNET_PRIORITES.BYPASS, address, port);
+  protected override touch(address: string, port: number) {
+    const key = `${address}:${port}`;
+    const existing = this.clients.get(key);
+    if (existing) {
+      existing.lastSeen = Date.now();
+      return;
     }
-    
-    const addressAndPort = address + ':' + port;
+    const client = new ServerClient(this, address, port);
+    this.clients.set(key, client);
+    for (const event of serverClientUpdateEvents) this.emit(event, address, port, 'connect');
+    this.emit('connect', client);
+  }
 
-    if (!(addressAndPort in this.lastIds)) {
-      this.lastIds[addressAndPort] = [];
-    }
-    if (this.lastIds[addressAndPort].includes(uniqueId)) return false;
-  
-    if (this.lastIds[addressAndPort].length >= 10) this.lastIds[addressAndPort].shift();
-    this.lastIds[addressAndPort].push(uniqueId);
+  protected override isRemoteAlive(address: string, port: number) {
+    return this.clients.has(`${address}:${port}`);
+  }
 
-    if (!(addressAndPort in this.clients)) {
-      serverClientUpdateEvents.forEach((event) => this.emit(event, address, port, 'connect'));
-    }
-    this.clients[addressAndPort] = Date.now();
-
-    const bs = BitStream.from(data);
-    serverReceivePacketEvents.forEach((event) => this.emit(event, packetId, bs, address, port));
-
-    if (packetId === SNET_CONFIRM_PRIORITY) {
-      const confBs = BitStream.from(data);
-      const confId = confBs.readUInt32();
-      const idx = this.packets.findIndex((v) => v.uniqueId === confId);
-      if (idx > -1) {
-        const before = this.packets.slice(0, idx);
-        const after = this.packets.slice(idx+1);
-        this.packets = [...before, ...after];
-      }
+  protected override onTick(now: number) {
+    for (const client of [...this.clients.values()]) {
+      if (now - client.lastSeen < this.clientTimeout) continue;
+      this.dropClient(client);
+      for (const event of serverClientUpdateEvents) this.emit(event, client.address, client.port, 'timeout');
+      this.emit('timeout', client);
     }
   }
 
-  private resendPackets() {
-    const _packets: ServerPacket[] = [];
-    for (let i = this.packets.length; i >= 0; i--) {
-      const v = this.packets[i];
-      if (!v) continue;
-      if (Date.now() - v.lastTime >= 500) {
-        v.lastTime = Date.now();
-        v.times++;
-
-        sendPacket(this.socket, v.uniqueId, v.packetId, v.priority, v.bs, v.address, v.port);
-
-        if (v.priority === SNET_PRIORITES.SYSTEM && !((v.address + ':' + v.port) in this.clients))
-          continue;
-        else if (v.priority === SNET_PRIORITES.HIGH && v.times >= 20)
-          continue;
-        else if (v.priority === SNET_PRIORITES.MEDIUM && v.times >= 10)
-          continue;
-        else if (v.priority === SNET_PRIORITES.LOW && v.times >= 5)
-          continue;        
-      }
-      _packets.push(v);
+  protected override onPacket(packet: SNetPacketStruct, address: string, port: number) {
+    const client = this.clients.get(`${address}:${port}`)!;
+    for (const event of serverReceivePacketEvents) {
+      if (this.listenerCount(event)) this.emit(event, packet.packetId, BitStream.from(packet.payload), address, port, client);
     }
-    this.packets = _packets;
   }
 }
