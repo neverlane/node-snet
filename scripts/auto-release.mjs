@@ -71,7 +71,20 @@ function buildBody() {
 	return [header, changes, `### commits${previous ? ` since ${previous}` : ""}\n\n${commits}`].filter(Boolean).join("\n\n");
 }
 
-if (!DRY_RUN && !isPublished()) {
+// right after `npm publish` the registry can take a few minutes to serve the new version
+async function waitPublished(timeoutMs = 5 * 60_000, stepMs = 15_000) {
+	const start = Date.now();
+	while (!isPublished()) {
+		if (Date.now() - start > timeoutMs) return false;
+		console.log(`waiting for ${name}@${version} to show up on npm...`);
+		await new Promise((r) => setTimeout(r, stepMs));
+	}
+	return true;
+}
+
+// only wait when this run just published (publish.mjs leaves a marker), otherwise check once
+const justPublished = process.env.SNET_JUST_PUBLISHED === "1" || existsSync(".just-published");
+if (!DRY_RUN && !(justPublished ? await waitPublished() : isPublished())) {
 	console.log(`skip ${tag}: ${name}@${version} is not on npm`);
 	process.exit(0);
 }
