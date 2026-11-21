@@ -6,7 +6,7 @@
 // prerelease versions (2.1.0-beta.0) go to the `next` dist-tag.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const DRY_RUN = process.env.DRY_RUN === "1";
 const { name, version } = JSON.parse(readFileSync("package.json", "utf8"));
@@ -41,6 +41,7 @@ if (DRY_RUN) {
 console.log(`publishing ${id}`);
 try {
 	execFileSync("pnpm", args, { stdio: "inherit" });
+	writeFileSync(".just-published", id); // tells auto-release.mjs to wait for the registry
 } catch {
 	console.error(
 		"\nE404 on PUT under trusted publishing means npmjs.com has no trusted publisher for node-snet\n" +
