@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      # luajit + luasocket for the interop tests against RazorRw/SNET (pinned in scripts/setup-lua.sh)
+      - name: install luajit
+        run: sudo apt-get update && sudo apt-get install -y luajit libluajit-5.1-dev liblua5.1-0-dev luarocks
+
+      # default rmem_max (~208KB) caps the 4MB socket buffers node-snet asks for, bursts would drop
+      - name: raise udp buffer limits
+        run: sudo sysctl -w net.core.rmem_max=8388608 net.core.wmem_max=8388608
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test:setup
+
+      - run: pnpm typecheck
+
+      - run: pnpm build
+
+      - run: pnpm test
+
+      - run: pnpm changelog:check
