@@ -2,7 +2,7 @@ import { BitStream } from './bitstream';
 import { encodePacket, type SNetPacketStruct } from './net-utils';
 import { Peer, type PeerOptions } from './peer';
 import type { ITypedEmitter } from './typed-emitter';
-import { SNET_BLOCK_PACKET, SNET_PRIORITIES, SNET_STATUSES, type SupportedEventNames } from './types';
+import { SNET_BLOCK_PACKET, SNET_PRIORITIES, SNET_STATUSES } from './types';
 
 export interface ClientOptions extends PeerOptions {
   /** no packets from the server for this long -> status DISCONNECTED + 'timeout' event, ms */
@@ -10,9 +10,12 @@ export interface ClientOptions extends PeerOptions {
 }
 
 export type ClientReceivePacketEvent = (packetId: number, bs: BitStream) => unknown;
-const clientReceivePacketEvents: SupportedEventNames<'receivePacket'>[] = ['receivePacket', 'onReceivePacket'];
+const clientReceivePacketEvents = ['receivePacket', 'onReceivePacket'] as const;
 
-export interface ClientEvents extends Record<SupportedEventNames<'receivePacket'>, ClientReceivePacketEvent> {
+export interface ClientEvents {
+  receivePacket: ClientReceivePacketEvent;
+  /** alias of receivePacket (Lua SNET name) */
+  onReceivePacket: ClientReceivePacketEvent;
   ready: () => unknown;
   close: () => unknown;
   error: (err: Error) => unknown;

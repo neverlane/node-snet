@@ -2,7 +2,7 @@ import { BitStream } from './bitstream';
 import type { SNetPacketStruct } from './net-utils';
 import { Peer, type PeerOptions } from './peer';
 import type { ITypedEmitter } from './typed-emitter';
-import { SNET_BLOCK_PACKET, SNET_PRIORITIES, type SupportedEventNames } from './types';
+import { SNET_BLOCK_PACKET, SNET_PRIORITIES } from './types';
 
 export interface ServerOptions extends PeerOptions {
   /** client is dropped after this long without packets, ms */
@@ -14,12 +14,16 @@ export interface ServerOptions extends PeerOptions {
 export type ServerClientUpdateEvent = (address: string, port: number, type: 'connect' | 'timeout') => unknown;
 export type ServerReceivePacketEvent = (packetId: number, bs: BitStream, address: string, port: number, client: ServerClient) => unknown;
 
-const serverReceivePacketEvents: SupportedEventNames<'receivePacket'>[] = ['receivePacket', 'onReceivePacket'];
-const serverClientUpdateEvents: SupportedEventNames<'clientUpdate'>[] = ['clientUpdate', 'onClientUpdate'];
+const serverReceivePacketEvents = ['receivePacket', 'onReceivePacket'] as const;
+const serverClientUpdateEvents = ['clientUpdate', 'onClientUpdate'] as const;
 
-export interface ServerEvents
-  extends Record<SupportedEventNames<'clientUpdate'>, ServerClientUpdateEvent>,
-  Record<SupportedEventNames<'receivePacket'>, ServerReceivePacketEvent> {
+export interface ServerEvents {
+  receivePacket: ServerReceivePacketEvent;
+  /** alias of receivePacket (Lua SNET name) */
+  onReceivePacket: ServerReceivePacketEvent;
+  clientUpdate: ServerClientUpdateEvent;
+  /** alias of clientUpdate (Lua SNET name) */
+  onClientUpdate: ServerClientUpdateEvent;
   ready: () => unknown;
   close: () => unknown;
   error: (err: Error) => unknown;
