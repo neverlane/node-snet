@@ -18,7 +18,10 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts"
+    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:setup": "bash scripts/setup-lua.sh"
   },
   "homepage": "https://github.com/neverlane/node-snet",
   "repository": {
@@ -39,6 +42,7 @@
   "devDependencies": {
     "@types/node": "^18.19.43",
     "tsup": "^8.2.4",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vitest": "^5.1.1"
   }
 }

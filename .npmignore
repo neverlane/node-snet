@@ -7,3 +7,6 @@
 .eslintrc.json
 node_modules
 *.tgz
+/tests
+/scripts
+vitest.config.ts
