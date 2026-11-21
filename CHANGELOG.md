@@ -4,6 +4,7 @@
 
 ### major changes
 
+- requires node >= 22 (node 20 is end-of-life)
 - wire format follows [RazorRw/SNET](https://github.com/RazorRw/SNET) (`19aecbe`): no trailing `0x00` after packets and nothing is stripped on receive. 1.x lost the last payload byte of every packet from Lua SNET and could not read its confirmations (reliable packets were re-sent until their limit and piled up in memory). set `legacyTerminator: true` to talk to node-snet 1.x / SLMP-Team SNET
 - `BitStream` is now bit-level (RakNet style): `writeBit`/`writeBits`/`writeSignedBits`, ranged ints, quantized floats, normalized vectors, quaternions, `alignWrite`/`alignRead`. byte-aligned writes produce the same bytes as Lua `bstream`
 - `BitStream` writes overwrite at the write offset (1.x grew the buffer with garbage), `writeString` counts bytes instead of chars (utf8 was truncated), out-of-range ints throw `RangeError` (8-bit values silently wrapped), buffer grows by doubling (was O(n²))
