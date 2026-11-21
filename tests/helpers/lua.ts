@@ -49,9 +49,14 @@ export class LuaPeer {
     proc.stderr!.setEncoding('utf8').on('data', (c: string) => (this.stderr += c));
   }
 
-  static async start(mode: 'server' | 'client', port: number, drain = 200): Promise<LuaPeer> {
-    const env = getLuaEnv();
-    if (!env) throw new Error('Lua SNET not available, run scripts/setup-lua.sh');
+  /**
+   * @param rcvbuf OS receive buffer for the lua socket. Razor keeps the OS default (~208KB), which
+   *   drops bursts of BYPASS packets on the lua side; load tests raise it to measure node-snet itself.
+   */
+  static async start(mode: 'server' | 'client', port: number, { drain = 200, rcvbuf }: { drain?: number; rcvbuf?: number } = {}): Promise<LuaPeer> {
+    const base = getLuaEnv();
+    if (!base) throw new Error('Lua SNET not available, run scripts/setup-lua.sh');
+    const env = rcvbuf ? { ...base, SNET_LUA_RCVBUF: String(rcvbuf) } : base;
     const proc = spawn('luajit', [PEER, mode, String(port), String(drain)], { env, stdio: ['ignore', 'pipe', 'pipe'] });
     const peer = new LuaPeer(proc, mode, port);
     await peer.waitLine((l) => l === 'READY', 5000);

@@ -41,7 +41,8 @@ describe.each(PAIRS)('load: $localRole node-snet vs $remote', (pair) => {
   const skip = pair.remote === 'lua' && !lua;
 
   for (const sc of SCENARIOS) {
-    const opts: RigOptions = { ...pair, loss: sc.loss };
+    // measure node-snet, not Razor's default socket buffer (see 'lua defaults' below)
+    const opts: RigOptions = { ...pair, loss: sc.loss, luaRcvbuf: 4 * 1024 * 1024 };
 
     it.skipIf(skip)(`${rigName(opts)}: remote -> node, ${sc.name}`, async () => {
       const rig = await makeRig(opts);
@@ -89,6 +90,18 @@ describe.each(PAIRS)('load: $localRole node-snet vs $remote', (pair) => {
       }
     }, sc.timeout + 20000);
   }
+});
+
+describe.skipIf(!lua)('lua defaults (upstream limitation, report only)', () => {
+  it.each(['server', 'client'] as const)('lua %s with default OS buffer: node -> lua 1000 x 64B BYPASS', async (luaRole) => {
+    const rig = await makeRig({ localRole: luaRole === 'server' ? 'client' : 'server', remote: 'lua' });
+    cleanup.push(rig);
+    const t = Date.now();
+    for (let seq = 0; seq < 1000; seq++) rig.send(PKT.LOAD, new BitStream().writeUInt32(seq).writeBytes(Buffer.alloc(60)), SNET_PRIORITES.BYPASS);
+    const s = await remoteStats(rig);
+    report(`${rig.name} (lua default rcvbuf) node->lua BYPASS`, 1000, s.loadUnique, s.loadTotal, Date.now() - t);
+    expect(s.loadUnique).toBeGreaterThan(0);
+  });
 });
 
 describe('memory: expired packets leave the resend queue', () => {

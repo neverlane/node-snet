@@ -124,7 +124,7 @@ describe.skipIf(!lua)('topologies', () => {
     await waitFor(() => inbox.byId(PKT.HELLO).length >= 2, 3000, 'two HELLOs');
     expect(inbox.byId(PKT.HELLO).map((h) => h.data.toString()).sort()).toEqual(['lua', 'node']);
     expect(updates).toEqual(['connect', 'connect']);
-    expect(Object.keys(server.clients)).toHaveLength(2);
+    expect(server.clients.size).toBe(2);
 
     // broadcast reaches both, byte-exact
     const payload = Buffer.from([0xde, 0xad, 0xbe, 0xef, 0x00]);
@@ -188,7 +188,7 @@ describe.skipIf(!lua)('topologies', () => {
     const nodeInboxes = nodes.map(collect);
     nodes.forEach((c) => c.send(PKT.HELLO, new BitStream().writeBytes(Buffer.from('node')), SNET_PRIORITES.HIGH));
 
-    await waitFor(() => Object.keys(server.clients).length === 4, 3000, '4 clients');
+    await waitFor(() => server.clients.size === 4, 3000, '4 clients');
     for (let i = 0; i < 10; i++) server.sendAll(50 + i, new BitStream().writeUInt32(i), SNET_PRIORITES.HIGH);
     for (const l of luas) await l.waitRecv(59);
     for (const ni of nodeInboxes) await ni.first(59);
@@ -220,16 +220,18 @@ describe.skipIf(!lua)('topologies', () => {
     expect(luaClient.received(SNET_BLOCK_PACKET)).toHaveLength(1); // rate-limited, not per packet
   });
 
-  it('node client handles SNET_BLOCK_PACKET from lua-compatible server', async () => {
+  it('node client emits blocked on SNET_BLOCK_PACKET', async () => {
     const port = getPort();
     const server = await startNodeServer(port);
     cleanup.push(server);
     server.blockAddress('127.0.0.1');
     const client = await startNodeClient(port);
     const inbox = collect(client);
+    let blocked = 0;
+    client.on('blocked', () => blocked++);
     cleanup.push(client);
     client.send(PKT.HELLO, new BitStream(), SNET_PRIORITES.BYPASS);
-    await waitFor(() => inbox.byId(SNET_BLOCK_PACKET).length > 0);
-    expect(inbox.byId(SNET_BLOCK_PACKET)[0].data.length).toBe(0);
+    await waitFor(() => blocked > 0);
+    expect(inbox.got, 'service packet is not a user packet').toHaveLength(0);
   });
 });

@@ -98,7 +98,7 @@ export function attachNodePeer(peer: Server | Client) {
         break;
       case PKT.STATS:
         reply(PKT.STATS_REPLY, new BitStream()
-          .writeUInt32((peer as any).packets.length)
+          .writeUInt32(peer.pendingCount)
           .writeUInt32(state.loadSeen.size)
           .writeUInt32(state.loadTotal), SNET_PRIORITES.BYPASS, address, port);
         break;

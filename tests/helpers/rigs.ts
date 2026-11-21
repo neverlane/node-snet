@@ -28,6 +28,8 @@ export interface RigOptions {
   remote: Impl;
   /** drop rate of a proxy placed between client and server (0 = direct) */
   loss?: number;
+  /** OS receive buffer of the lua peer (see LuaPeer.start) */
+  luaRcvbuf?: number;
 }
 
 export const rigName = ({ localRole, remote, loss }: RigOptions) => {
@@ -37,7 +39,7 @@ export const rigName = ({ localRole, remote, loss }: RigOptions) => {
 };
 
 export async function makeRig(opts: RigOptions): Promise<Rig> {
-  const { localRole, remote, loss = 0 } = opts;
+  const { localRole, remote, loss = 0, luaRcvbuf } = opts;
   const serverPort = getPort();
   const proxyPort = loss ? getPort() : serverPort;
   const name = rigName(opts);
@@ -53,7 +55,7 @@ export async function makeRig(opts: RigOptions): Promise<Rig> {
       // remote server, local node client
       let lua: LuaPeer | undefined;
       let remoteServer: Server | undefined;
-      if (remote === 'lua') lua = await LuaPeer.start('server', serverPort);
+      if (remote === 'lua') lua = await LuaPeer.start('server', serverPort, { rcvbuf: luaRcvbuf });
       else attachNodePeer((remoteServer = await startNodeServer(serverPort)));
 
       const local = await startNodeClient(proxyPort);
@@ -72,7 +74,7 @@ export async function makeRig(opts: RigOptions): Promise<Rig> {
     let lua: LuaPeer | undefined;
     let remoteClient: Client | undefined;
     if (remote === 'lua') {
-      lua = await LuaPeer.start('client', proxyPort); // lua client sends HELLO by itself
+      lua = await LuaPeer.start('client', proxyPort, { rcvbuf: luaRcvbuf }); // lua client sends HELLO by itself
     } else {
       remoteClient = await startNodeClient(proxyPort);
       attachNodePeer(remoteClient);
@@ -115,4 +117,4 @@ export async function remoteStats(rig: Rig, until?: (s: { pending: number; loadU
   throw new Error(`${rig.name}: no STATS reply`);
 }
 
-export const pendingOf = (peer: Server | Client): number => (peer as any).packets.length;
+export const pendingOf = (peer: Server | Client): number => peer.pendingCount;

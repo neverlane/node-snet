@@ -39,6 +39,10 @@ else
   peer = snet.client('127.0.0.1', port)
 end
 
+-- optional: bigger OS receive buffer (Razor uses the OS default)
+local rcvbuf = tonumber(os.getenv('SNET_LUA_RCVBUF') or '')
+if rcvbuf then assert(peer.socket:setoption('recv-buffer-size', rcvbuf)) end
+
 local load_seen, load_unique, load_total = {}, 0, 0
 
 local function reply(packet_id, bs, priority, address, rport)

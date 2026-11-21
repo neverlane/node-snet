@@ -2,6 +2,7 @@ export * from './types';
 export * from './bitstream';
 export * from './typed-emitter';
 export * from './net-utils';
+export * from './peer';
 export * from './client';
 export * from './server';
 export * from './connection-string';
